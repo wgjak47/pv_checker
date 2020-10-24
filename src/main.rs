@@ -1,5 +1,7 @@
 mod config;
 mod remote;
+mod version;
+
 use clap::Clap;
 use shellexpand::tilde;
 use std::path::Path;
@@ -13,11 +15,11 @@ struct Opts {
 
 #[tokio::main]
 async fn request_package(config: &config::PackageConfig) {
-    println!("{}-{}", config.name, config.url);
+    println!("{}-{}:", config.name, config.url);
 
     match config.get_version().await {
         Ok(info) => {
-            println!("{:#?}", info);
+            println!("{}", info);
         }
         Err(e) => {
             println!("{}", e);

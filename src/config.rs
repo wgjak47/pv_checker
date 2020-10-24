@@ -1,11 +1,11 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
 use crate::remote::get_package_remote;
+use crate::version::VersionInfo;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PackageConfig {
@@ -26,7 +26,7 @@ pub fn load_package_config(path: &Path) -> Result<PackageConfigs> {
 }
 
 impl PackageConfig {
-    pub async fn get_version(&self) -> Result<HashMap<String, String>> {
+    pub async fn get_version(&self) -> Result<Box<dyn VersionInfo>> {
         let remote = get_package_remote(
             self.url.clone(),
             self.package_type.clone(),

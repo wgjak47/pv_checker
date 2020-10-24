@@ -2,12 +2,14 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use url::Url;
+
+use crate::version::GithubCommitVersion;
+use crate::version::VersionInfo;
 
 #[async_trait]
 pub trait PackageRemote {
-    async fn fetch_latest_version(&self) -> Result<HashMap<String, String>>;
+    async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>>;
 }
 
 pub fn get_package_remote(
@@ -58,7 +60,7 @@ struct GitHubRemote {
 
 #[async_trait]
 impl PackageRemote for GitHubRemote {
-    async fn fetch_latest_version(&self) -> Result<HashMap<String, String>> {
+    async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>> {
         let request_url = format!(
             "https://api.github.com/repos/{owner}/{repo}/commits",
             owner = self.owner,
@@ -94,17 +96,18 @@ impl PackageRemote for GitHubRemote {
 
         let newest_commit = &commits[0];
 
-        Ok([
-            ("sha".to_string(), newest_commit.sha.clone()),
-            ("date".to_string(), newest_commit.commit.author.date.clone()),
-        ]
-        .iter()
-        .cloned()
-        .collect())
+        Ok(Box::new(GithubCommitVersion::new(
+            newest_commit.sha.clone(),
+            newest_commit.commit.author.date.clone(),
+        )))
     }
 }
 
 impl GitHubRemote {
+    async fn fetch_commit(&self) -> Result<()> {
+        unimplemented!()
+    }
+
     fn new(url: String, version_type: String) -> Result<Self> {
         let github_url = Url::parse(&url)?;
         let path_segments: Vec<&str> = github_url
