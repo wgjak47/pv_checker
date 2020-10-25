@@ -15,7 +15,7 @@ pub struct PackageConfig {
     pub version_type: String,
 }
 
-type PackageConfigs = Vec<PackageConfig>;
+pub type PackageConfigs = Vec<PackageConfig>;
 
 pub fn load_package_config(path: &Path) -> Result<PackageConfigs> {
     let mut file = File::open(path)?;

@@ -3,6 +3,7 @@ mod remote;
 mod version;
 
 use clap::Clap;
+use futures::{stream, StreamExt};
 use shellexpand::tilde;
 use std::path::Path;
 
@@ -13,29 +14,32 @@ struct Opts {
     config: String,
 }
 
-#[tokio::main]
-async fn request_package(config: &config::PackageConfig) {
-    println!("{}-{}:", config.name, config.url);
+async fn request_package(configs: &[config::PackageConfig]) {
+    let result = stream::iter(configs).for_each_concurrent(4, |config| async move {
+        match config.get_version().await {
+            Ok(info) => {
+                println!("package: {}, url: {}:", config.name, config.url);
+                println!("{}", info);
+            }
+            Err(e) => {
+                println!("package: {}, url: {}:", config.name, config.url);
+                println!("{}", e);
+            }
+        };
+    });
 
-    match config.get_version().await {
-        Ok(info) => {
-            println!("{}", info);
-        }
-        Err(e) => {
-            println!("{}", e);
-        }
-    };
+    result.await;
 }
 
-pub fn main() {
+#[tokio::main]
+async fn main() {
     let opts: Opts = Opts::parse();
     let file_path = tilde(&opts.config).into_owned();
-    println!("{}", file_path);
     let path = Path::new(&file_path);
     match config::load_package_config(path) {
         Err(e) => println!("{}", e),
-        Ok(configs) => configs.iter().for_each(|config| {
-            request_package(config);
-        }),
+        Ok(configs) => {
+            request_package(&configs).await;
+        }
     }
 }
