@@ -7,6 +7,9 @@ use url::Url;
 use crate::version::GithubCommitVersion;
 use crate::version::VersionInfo;
 
+const GITHUBCOMMITTYPE: &str = "commit";
+const GITHUBTAGTYPE: &str = "tag";
+
 #[async_trait]
 pub trait PackageRemote {
     async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>>;
@@ -61,6 +64,19 @@ struct GitHubRemote {
 #[async_trait]
 impl PackageRemote for GitHubRemote {
     async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>> {
+        match self.version_type.as_str() {
+            GITHUBCOMMITTYPE => self.fetch_commit().await,
+            GITHUBTAGTYPE => self.fetch_tag().await,
+            _ => Err(anyhow!("invalid type")),
+        }
+    }
+}
+
+impl GitHubRemote {
+    async fn fetch_tag(&self) -> Result<Box<dyn VersionInfo>> {
+        unimplemented!()
+    }
+    async fn fetch_commit(&self) -> Result<Box<dyn VersionInfo>> {
         let request_url = format!(
             "https://api.github.com/repos/{owner}/{repo}/commits",
             owner = self.owner,
@@ -100,12 +116,6 @@ impl PackageRemote for GitHubRemote {
             newest_commit.sha.clone(),
             newest_commit.commit.author.date.clone(),
         )))
-    }
-}
-
-impl GitHubRemote {
-    async fn fetch_commit(&self) -> Result<()> {
-        unimplemented!()
     }
 
     fn new(url: String, version_type: String) -> Result<Self> {

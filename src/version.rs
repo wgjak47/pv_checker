@@ -3,7 +3,7 @@ use std::fmt;
 
 pub trait VersionInfo: fmt::Display {
     // TODO use this to integrate with template engine
-    fn ToMap(&self) -> HashMap<&'static str, String>;
+    fn to_map(&self) -> HashMap<&'static str, String>;
 }
 
 pub struct GithubCommitVersion {
@@ -12,7 +12,7 @@ pub struct GithubCommitVersion {
 }
 
 impl VersionInfo for GithubCommitVersion {
-    fn ToMap(&self) -> HashMap<&'static str, String> {
+    fn to_map(&self) -> HashMap<&'static str, String> {
         [("sha", self.sha.clone()), ("date", self.date.clone())]
             .iter()
             .cloned()
