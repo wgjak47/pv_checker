@@ -31,3 +31,28 @@ impl GithubCommitVersion {
         GithubCommitVersion { sha, date }
     }
 }
+
+pub struct GithubTagVersion {
+    tag_version: String,
+}
+
+impl GithubTagVersion {
+    pub fn new(tag_version: String) -> Self {
+        GithubTagVersion { tag_version }
+    }
+}
+
+impl fmt::Display for GithubTagVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "tag version: {}", self.tag_version)
+    }
+}
+
+impl VersionInfo for GithubTagVersion {
+    fn to_map(&self) -> HashMap<&'static str, String> {
+        [("tag_version", self.tag_version.clone())]
+            .iter()
+            .cloned()
+            .collect()
+    }
+}

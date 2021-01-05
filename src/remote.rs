@@ -1,14 +1,29 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use reqwest::StatusCode;
+use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use url::Url;
 
-use crate::version::GithubCommitVersion;
 use crate::version::VersionInfo;
+use crate::version::{GithubCommitVersion, GithubTagVersion};
 
-const GITHUBCOMMITTYPE: &str = "commit";
-const GITHUBTAGTYPE: &str = "tag";
+enum GithubVersionType {
+    TagType,
+    CommitType,
+}
+
+impl FromStr for GithubVersionType {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "tag" => Ok(GithubVersionType::TagType),
+            "commit" => Ok(GithubVersionType::CommitType),
+            _ => Err("no match"),
+        }
+    }
+}
 
 #[async_trait]
 pub trait PackageRemote {
@@ -26,6 +41,11 @@ pub fn get_package_remote(
     }
 
     Err(anyhow!("invalid package type"))
+}
+
+#[derive(Serialize, Deserialize)]
+struct GitHubTagResp {
+    name: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,35 +78,25 @@ struct GitHubCommitResp {
 struct GitHubRemote {
     owner: String,
     repo: String,
-    version_type: String,
+    version_type: GithubVersionType,
 }
 
 #[async_trait]
 impl PackageRemote for GitHubRemote {
     async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>> {
-        match self.version_type.as_str() {
-            GITHUBCOMMITTYPE => self.fetch_commit().await,
-            GITHUBTAGTYPE => self.fetch_tag().await,
-            _ => Err(anyhow!("invalid type")),
+        match self.version_type {
+            GithubVersionType::CommitType => self.fetch_commit().await,
+            GithubVersionType::TagType => self.fetch_tag().await,
         }
     }
 }
 
 impl GitHubRemote {
-    async fn fetch_tag(&self) -> Result<Box<dyn VersionInfo>> {
-        unimplemented!()
-    }
-    async fn fetch_commit(&self) -> Result<Box<dyn VersionInfo>> {
-        let request_url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/commits",
-            owner = self.owner,
-            repo = self.repo,
-        );
-
+    async fn request_github(&self, request_url: &str) -> Result<Response> {
         let client = reqwest::Client::new();
 
         let resp = client
-            .get(&request_url)
+            .get(request_url)
             .query(&[("per_page", "1"), ("page", "1")])
             .header("Accept", "application/vnd.github.v3+json")
             .header("User-Agent", "pv-checker-v0.1.0")
@@ -104,10 +114,41 @@ impl GitHubRemote {
             ));
         }
 
+        return Ok(resp);
+    }
+
+    async fn fetch_tag(&self) -> Result<Box<dyn VersionInfo>> {
+        let request_url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/tags",
+            owner = self.owner,
+            repo = self.repo,
+        );
+
+        let resp = self.request_github(&request_url).await?;
+        let tags: Vec<GitHubTagResp> = resp.json().await?;
+
+        if tags.is_empty() {
+            return Err(anyhow!("repo has no tag"));
+        }
+
+        let newest_tag = &tags[0];
+
+        Ok(Box::new(GithubTagVersion::new(newest_tag.name.to_string())))
+    }
+
+    async fn fetch_commit(&self) -> Result<Box<dyn VersionInfo>> {
+        let request_url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/commits",
+            owner = self.owner,
+            repo = self.repo,
+        );
+
+        let resp = self.request_github(&request_url).await?;
+
         let commits: Vec<GitHubCommitResp> = resp.json().await?;
 
         if commits.is_empty() {
-            return Err(anyhow!("repo has commit"));
+            return Err(anyhow!("repo has no commit"));
         }
 
         let newest_commit = &commits[0];
@@ -129,10 +170,13 @@ impl GitHubRemote {
             return Err(anyhow!("url invalid"));
         }
 
+        let vt = GithubVersionType::from_str(&version_type)
+            .map_err(|e| anyhow!(format!("invalid type: {}", e)))?;
+
         Ok(GitHubRemote {
             owner: path_segments[0].to_string(),
             repo: path_segments[1].to_string(),
-            version_type,
+            version_type: vt,
         })
     }
 }
