@@ -56,3 +56,28 @@ impl VersionInfo for GithubTagVersion {
             .collect()
     }
 }
+
+pub struct PypiVersion {
+    version: String,
+}
+
+impl PypiVersion {
+    pub fn new(version: String) -> Self {
+        Self { version }
+    }
+}
+
+impl fmt::Display for PypiVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "version: {}", self.version)
+    }
+}
+
+impl VersionInfo for PypiVersion {
+    fn to_map(&self) -> HashMap<&'static str, String> {
+        [("version", self.version.clone())]
+            .iter()
+            .cloned()
+            .collect()
+    }
+}

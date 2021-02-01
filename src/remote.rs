@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use url::Url;
 
-use crate::version::VersionInfo;
 use crate::version::{GithubCommitVersion, GithubTagVersion};
+use crate::version::{PypiVersion, VersionInfo};
 
 enum GithubVersionType {
     TagType,
@@ -30,17 +30,23 @@ pub trait PackageRemote {
     async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>>;
 }
 
+// TODO support dynamic field for different remote
 pub fn get_package_remote(
     url: String,
     package_type: String,
     version_type: String,
 ) -> Result<Box<dyn PackageRemote>> {
-    if package_type == "github" {
-        let remote = GitHubRemote::new(url, version_type)?;
-        return Ok(Box::new(remote));
+    match package_type.as_str() {
+        "github" => {
+            let remote = GitHubRemote::new(url, version_type)?;
+            return Ok(Box::new(remote));
+        }
+        "pypi" => {
+            let remote = PypiRemote::new(url);
+            return Ok(Box::new(remote));
+        }
+        _ => Err(anyhow!("invalid package type")),
     }
-
-    Err(anyhow!("invalid package type"))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -178,5 +184,58 @@ impl GitHubRemote {
             repo: path_segments[1].to_string(),
             version_type: vt,
         })
+    }
+}
+
+struct PypiRemote {
+    projct_name: String,
+}
+
+impl PypiRemote {
+    fn new(projct_name: String) -> Self {
+        Self { projct_name }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct PypiInfo {
+    version: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PypiRemoteResp {
+    info: PypiInfo,
+}
+
+#[async_trait]
+impl PackageRemote for PypiRemote {
+    async fn fetch_latest_version(&self) -> Result<Box<dyn VersionInfo>> {
+        let client = reqwest::Client::new();
+
+        let request_url = format!(
+            "https://pypi.org/pypi/{project_name}/json",
+            project_name = self.projct_name
+        );
+
+        let resp = client
+            .get(&request_url)
+            .header("User-Agent", "pv-checker-v0.1.0")
+            .send()
+            .await?;
+
+        let status_code = resp.status();
+
+        if status_code != StatusCode::OK {
+            let rest_text = resp.text().await?;
+            return Err(anyhow!(
+                "failed to request pypi, status code: {} response: {}",
+                rest_text,
+                status_code
+            ));
+        }
+
+        let resp: PypiRemoteResp = resp.json().await?;
+
+        Ok(Box::new(PypiVersion::new(resp.info.version)))
     }
 }
