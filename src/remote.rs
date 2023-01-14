@@ -39,11 +39,11 @@ pub fn get_package_remote(
     match package_type.as_str() {
         "github" => {
             let remote = GitHubRemote::new(url, version_type)?;
-            return Ok(Box::new(remote));
+            Ok(Box::new(remote))
         }
         "pypi" => {
             let remote = PypiRemote::new(url);
-            return Ok(Box::new(remote));
+            Ok(Box::new(remote))
         }
         _ => Err(anyhow!("invalid package type")),
     }
@@ -120,7 +120,7 @@ impl GitHubRemote {
             ));
         }
 
-        return Ok(resp);
+        Ok(resp)
     }
 
     async fn fetch_tag(&self) -> Result<Box<dyn VersionInfo>> {
@@ -219,7 +219,7 @@ impl PackageRemote for PypiRemote {
 
         let resp = client
             .get(&request_url)
-            .header("User-Agent", "pv-checker-v0.1.0")
+            .header("User-Agent", "pv-checker-v0.1.1")
             .send()
             .await?;
 

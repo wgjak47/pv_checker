@@ -12,7 +12,7 @@ pub struct PackageConfig {
     pub name: String,
     pub url: String,
     pub package_type: String,
-    pub version_type: String,
+    pub version_type: Option<String>,
 }
 
 pub type PackageConfigs = Vec<PackageConfig>;
@@ -30,7 +30,7 @@ impl PackageConfig {
         let remote = get_package_remote(
             self.url.clone(),
             self.package_type.clone(),
-            self.version_type.clone(),
+            self.version_type.clone().unwrap_or_default(),
         )?;
         let version_info = remote.fetch_latest_version().await?;
 
